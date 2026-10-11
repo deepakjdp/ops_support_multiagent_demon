@@ -1,0 +1,24 @@
+{
+  "alert_name": "Datadog Monitor: [CRITICAL] cart-api Database Connection Pool Starvation",
+  "subject": "[Datadog] [P2] cart-api HikariPool Connection Timeout on production",
+  "from": "alerts@datadoghq.com",
+  "to": "sre-ops@company.internal",
+  "timestamp": "2025-10-15T15:30:00Z",
+  "incident_id": "INC-773180",
+  "service": "cart-api",
+  "environment": "production",
+  "severity": "P2 - High",
+  "details": {
+    "host": "prod-cart-worker-01.corp.internal",
+    "endpoint": "/api/v1/cart/checkout",
+    "status": 500,
+    "error_message": "HikariPool-1 - Connection is not available, request timed out after 30002ms.",
+    "trace_id": "req-cart-991283-bc2a",
+    "symptoms": [
+      "Cart checkout latency spiked from 120ms to 32,000ms",
+      "Database active connections reached 100/100 limit",
+      "HikariCP connection pool timeout"
+    ]
+  },
+  "message": "The cart-api service on host prod-cart-worker-01.corp.internal reported severe HikariPool connection starvation. Database query leases are not being released in a timely manner. Investigate Splunk logs for slow transactions and connection leaks."
+}

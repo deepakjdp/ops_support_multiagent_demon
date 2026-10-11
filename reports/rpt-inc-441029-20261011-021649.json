@@ -1,0 +1,183 @@
+{
+  "report_id": "RPT-INC-441029-20261011-021649",
+  "generated_at": "2026-10-11 02:16:49 UTC",
+  "incident_title": "ALARM: \"auth-service-5xx-spike\" in Production US-East-1",
+  "service_name": "auth-service",
+  "severity": "P2 - High",
+  "status": "INVESTIGATED",
+  "extracted_context": {
+    "incident_id": "INC-441029",
+    "title": "ALARM: \"auth-service-5xx-spike\" in Production US-East-1",
+    "service_name": "auth-service",
+    "environment": "production",
+    "severity": "P2 - High",
+    "alert_source": "Email Alert",
+    "timestamp_str": "Wed, 15 Oct 2025 15:05:00 +0000",
+    "detected_time": "2026-10-11T02:16:48.953034Z",
+    "earliest_time": "-60m",
+    "latest_time": "now",
+    "error_keywords": [
+      "PSQLException"
+    ],
+    "status_codes": [
+      500
+    ],
+    "trace_ids": [
+      "98a12c44-b102-4ef1-a881-22c98d0112fa"
+    ],
+    "transaction_ids": [
+      "98a12c44-b102-4ef1-a881-22c98d0112fa"
+    ],
+    "hostnames": [
+      "db-user-prod.internal",
+      "prod-auth-srv-01.internal",
+      "prod-auth-srv-02.internal"
+    ],
+    "ip_addresses": [],
+    "endpoints": [
+      "/api/v1/auth/token"
+    ],
+    "database_details": [
+      "postgres",
+      "deadlock"
+    ],
+    "symptoms": [
+      "ALARM: \"auth-service-5xx-spike\" in Production US-East-1",
+      "Service auth-service is emitting elevated 500 internal server errors.",
+      "org.postgresql.util.PSQLException: ERROR: deadlock detected",
+      "Status: 500 Internal Server Error"
+    ],
+    "raw_snippets": [
+      "ALARM: \"auth-service-5xx-spike\" in Production US-East-1",
+      "Alarm Description:",
+      "Service auth-service is emitting elevated 500 internal server errors.",
+      "Severity: P2 - High",
+      "Incident: INC-441029"
+    ]
+  },
+  "executed_queries": [
+    {
+      "query_id": "primary_error_search",
+      "category": "error_search",
+      "spl": "index=main (service=\"auth-service\" OR source=\"*auth-service*\" OR sourcetype=\"*auth-service*\" OR \"auth-service\") (status=500 OR status>=500) AND (\"PSQLException\") | head 50 | table _time, host, service, status, endpoint, error_message, _raw",
+      "description": "Retrieve top 50 recent error events for auth-service",
+      "earliest": "-60m",
+      "latest": "now",
+      "index": "main"
+    },
+    {
+      "query_id": "trace_id_deep_dive",
+      "category": "trace_lookup",
+      "spl": "index=main (\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR trace_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR transaction_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR request_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\") | sort _time | table _time, service, host, endpoint, status, log_level, message, _raw",
+      "description": "Correlate end-to-end transaction logs for trace IDs: 98a12c44-b102-4ef1-a881-22c98d0112fa",
+      "earliest": "-60m",
+      "latest": "now",
+      "index": "main"
+    },
+    {
+      "query_id": "status_aggregation",
+      "category": "status_aggregation",
+      "spl": "index=main (service=\"auth-service\" OR \"auth-service\") | stats count as total_requests, count(eval(status>=500)) as server_errors, count(eval(status>=400 AND status<500)) as client_errors by endpoint, status | sort -server_errors, -total_requests",
+      "description": "Aggregate HTTP response status distribution and failure counts per endpoint",
+      "earliest": "-60m",
+      "latest": "now",
+      "index": "main"
+    },
+    {
+      "query_id": "host_breakdown",
+      "category": "host_breakdown",
+      "spl": "index=main (service=\"auth-service\" OR \"auth-service\") (status>=500 OR \"ERROR\" OR \"Exception\") | stats count as error_count, dc(endpoint) as distinct_endpoints, values(status) as status_codes by host | sort -error_count",
+      "description": "Analyze error concentration across infrastructure hosts and pods",
+      "earliest": "-60m",
+      "latest": "now",
+      "index": "main"
+    },
+    {
+      "query_id": "exception_analysis",
+      "category": "exception_analysis",
+      "spl": "index=main (service=\"auth-service\" OR \"auth-service\") (\"Exception\" OR \"Error\" OR \"timeout\" OR \"refused\") | rex field=_raw \"(?<exception_type>[A-Za-z0-9_]+Exception|[A-Za-z0-9_]+Error)\" | stats count as occurrences, latest(_raw) as sample_log by exception_type | sort -occurrences",
+      "description": "Group and rank top recurring exception signatures and root error types",
+      "earliest": "-60m",
+      "latest": "now",
+      "index": "main"
+    }
+  ],
+  "log_analysis": {
+    "total_logs_analyzed": 16,
+    "error_count": 9,
+    "warning_count": 0,
+    "top_error_signatures": [
+      {
+        "signature": "SocketTimeoutException",
+        "count": 285,
+        "category": "Exception"
+      },
+      {
+        "signature": "SQLTransientConnectionException",
+        "count": 110,
+        "category": "Exception"
+      },
+      {
+        "signature": "PSQLException",
+        "count": 14,
+        "category": "Exception"
+      }
+    ],
+    "affected_hosts": [
+      "db-user-prod.internal",
+      "prod-auth-srv-01.internal",
+      "prod-auth-srv-02.internal",
+      "prod-gateway-01"
+    ],
+    "affected_endpoints": [
+      "/api/v1/payments/charge",
+      "/health",
+      "/api/v1/payments/process",
+      "/api/v1/auth/token",
+      "/api/v1/payments/status",
+      "/api/v1/checkout/submit"
+    ],
+    "affected_services": [
+      "api-gateway",
+      "auth-service"
+    ],
+    "status_code_distribution": {
+      "504": 344,
+      "500": 192,
+      "503": 1,
+      "200": 1870
+    },
+    "key_exceptions": [
+      "SocketTimeoutException (x285)",
+      "SQLTransientConnectionException (x110)",
+      "PSQLException (x14)"
+    ],
+    "root_cause_hypothesis": "Downstream Dependency Latency/Timeout: The auth-service experienced upstream/downstream connection timeouts (HTTP 504 / SocketTimeoutException), causing request queue backpressure and cascading connection pool exhaustion.",
+    "evidence_logs": [
+      "2026-10-11 02:16:49 UTC [ERROR] [auth-service] [98a12c44-b102-4ef1-a881-22c98d0112fa] host=db-user-prod.internal endpoint=/api/v1/payments/process status=504 message=\"Gateway Timeout: Downstream payment vendor endpoint timed out after 30000ms\"",
+      "2026-10-11 02:16:49 UTC [ERROR] [auth-service] [98a12c44-b102-4ef1-a881-22c98d0112fa] host=db-user-prod.internal endpoint=/api/v1/payments/charge status=500 exception=java.sql.SQLTransientConnectionException message=\"HikariPool-1 - Connection is not available, request timed out after 30002ms.\"",
+      "2026-10-11 02:16:49 UTC [ERROR] [auth-service] [req-889123c-a90b] host=prod-auth-srv-01.internal endpoint=/api/v1/payments/process status=503 message=\"Service Unavailable: Circuit breaker OPEN for target downstream-provider\"",
+      "2026-10-11 02:16:49 UTC [FATAL] [auth-service] [req-771290a-112c] host=db-user-prod.internal endpoint=/api/v1/checkout/submit status=500 exception=org.postgresql.util.PSQLException message=\"ERROR: deadlock detected - Process 28919 waits for ExclusiveLock on transaction\"",
+      "2026-10-11 02:16:49 UTC [ERROR] [auth-service] trace_id=98a12c44-b102-4ef1-a881-22c98d0112fa java.net.SocketTimeoutException: Read timed out after 30000ms",
+      "2026-10-11 02:16:49 UTC [ERROR] [auth-service] trace_id=98a12c44-b102-4ef1-a881-22c98d0112fa Returning HTTP 504 response to caller"
+    ],
+    "impact_assessment": "Impact Scope: Approximately 537+ failed operations observed across 4 instance(s). Critical affected endpoints include: /api/v1/payments/charge, /health, /api/v1/payments/process. User-facing transactions experienced elevated latency and error responses."
+  },
+  "executive_summary": "An operational incident was detected on service **auth-service** (production) via **Email Alert** with severity level **P2 - High**. Automated Splunk log analysis analyzed telemetry and confirmed elevated error rates with primary root cause attributed to: *Downstream Dependency Latency/Timeout: The auth-service experienced upstream/downstream connection timeouts (HTTP 504 / SocketTimeoutException), causing request queue backpressure and cascading connection pool exhaustion.*",
+  "root_cause_analysis": "Downstream Dependency Latency/Timeout: The auth-service experienced upstream/downstream connection timeouts (HTTP 504 / SocketTimeoutException), causing request queue backpressure and cascading connection pool exhaustion.",
+  "timeline_of_events": [
+    "[Wed, 15 Oct 2025 15:05:00 +0000] Incident alert triggered: ALARM: \"auth-service-5xx-spike\" in Production US-East-1",
+    "[2026-10-11 02:16:49 UTC] Ops Support Agent ingested alert and extracted service, status codes, and trace identifiers.",
+    "[2026-10-11 02:16:49 UTC] Executed 5 automated Splunk search queries spanning time range (-60m to now).",
+    "[2026-10-11 02:16:49 UTC] Correlated log signatures: Identified 3 recurring exception classes across 4 hosts.",
+    "[2026-10-11 02:16:49 UTC] Root cause analysis completed and remediation action plan formulated."
+  ],
+  "action_items_and_remediation": [
+    "1. **Circuit Breaker & Fallback**: Engage downstream payment provider status page; temporarily activate fallback retry backoff and circuit breaking.",
+    "2. **Connection Timeout Tuning**: Adjust client connect timeout from 30s to 10s to prevent worker thread saturation.",
+    "3. **Service Mesh Health**: Verify Envoy/Istio egress proxy connections and DNS resolution latency.",
+    "4. **Notify Stakeholders**: Dispatch incident status update to `#ops-incident-war-room` and update ticket `INC-441029`."
+  ],
+  "recommended_escalation": "Tier-2 Engineering (auth-service On-Call Team) & Database Reliability Engineering",
+  "markdown_content": "# 🛡️ Operations Support Incident Investigation Report\n**Report ID:** `RPT-INC-441029-20261011-021649` | **Generated:** `2026-10-11 02:16:49 UTC`\n**Incident Reference:** `INC-441029` | **Severity:** `P2 - High` | **Status:** `INVESTIGATED`\n\n---\n\n## 1. 📋 Incident Overview\n- **Title / Subject:** ALARM: \"auth-service-5xx-spike\" in Production US-East-1\n- **Impacted Service:** `auth-service` (production)\n- **Alert Source:** Email Alert\n- **Detection Timestamp:** Wed, 15 Oct 2025 15:05:00 +0000\n- **Extracted Trace / Request IDs:** `98a12c44-b102-4ef1-a881-22c98d0112fa`\n- **Identified Endpoints:** `/api/v1/auth/token`\n- **Target Infrastructure:** `db-user-prod.internal, prod-auth-srv-01.internal, prod-auth-srv-02.internal`\n\n## 2. ⚡ Executive Summary\nAn operational incident was detected on service **auth-service** (production) via **Email Alert** with severity level **P2 - High**. Automated Splunk log analysis analyzed telemetry and confirmed elevated error rates with primary root cause attributed to: *Downstream Dependency Latency/Timeout: The auth-service experienced upstream/downstream connection timeouts (HTTP 504 / SocketTimeoutException), causing request queue backpressure and cascading connection pool exhaustion.*\n\n## 3. 🔍 Splunk Queries Generated & Executed\n### 🔹 Query: `primary_error_search` (error_search)\n*Retrieve top 50 recent error events for auth-service*\n```spl\nindex=main (service=\"auth-service\" OR source=\"*auth-service*\" OR sourcetype=\"*auth-service*\" OR \"auth-service\") (status=500 OR status>=500) AND (\"PSQLException\") | head 50 | table _time, host, service, status, endpoint, error_message, _raw\n```\n- **Time Window:** `-60m` to `now` | **Index:** `main`\n\n### 🔹 Query: `trace_id_deep_dive` (trace_lookup)\n*Correlate end-to-end transaction logs for trace IDs: 98a12c44-b102-4ef1-a881-22c98d0112fa*\n```spl\nindex=main (\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR trace_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR transaction_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\" OR request_id=\"98a12c44-b102-4ef1-a881-22c98d0112fa\") | sort _time | table _time, service, host, endpoint, status, log_level, message, _raw\n```\n- **Time Window:** `-60m` to `now` | **Index:** `main`\n\n### 🔹 Query: `status_aggregation` (status_aggregation)\n*Aggregate HTTP response status distribution and failure counts per endpoint*\n```spl\nindex=main (service=\"auth-service\" OR \"auth-service\") | stats count as total_requests, count(eval(status>=500)) as server_errors, count(eval(status>=400 AND status<500)) as client_errors by endpoint, status | sort -server_errors, -total_requests\n```\n- **Time Window:** `-60m` to `now` | **Index:** `main`\n\n### 🔹 Query: `host_breakdown` (host_breakdown)\n*Analyze error concentration across infrastructure hosts and pods*\n```spl\nindex=main (service=\"auth-service\" OR \"auth-service\") (status>=500 OR \"ERROR\" OR \"Exception\") | stats count as error_count, dc(endpoint) as distinct_endpoints, values(status) as status_codes by host | sort -error_count\n```\n- **Time Window:** `-60m` to `now` | **Index:** `main`\n\n### 🔹 Query: `exception_analysis` (exception_analysis)\n*Group and rank top recurring exception signatures and root error types*\n```spl\nindex=main (service=\"auth-service\" OR \"auth-service\") (\"Exception\" OR \"Error\" OR \"timeout\" OR \"refused\") | rex field=_raw \"(?<exception_type>[A-Za-z0-9_]+Exception|[A-Za-z0-9_]+Error)\" | stats count as occurrences, latest(_raw) as sample_log by exception_type | sort -occurrences\n```\n- **Time Window:** `-60m` to `now` | **Index:** `main`\n\n## 4. 📊 Log Observability & Metrics Findings\n- **Total Telemetry Events Inspected:** 16\n- **Error Event Count:** 9 (Warnings: 0)\n- **Impact Assessment:** Impact Scope: Approximately 537+ failed operations observed across 4 instance(s). Critical affected endpoints include: /api/v1/payments/charge, /health, /api/v1/payments/process. User-facing transactions experienced elevated latency and error responses.\n\n#### HTTP Status Code Distribution\n| Status Code | Count / Impact |\n| :--- | :--- |\n| **504** | 344 |\n| **500** | 192 |\n| **503** | 1 |\n| **200** | 1870 |\n\n#### Dominant Exception Signatures\n- 🔴 `SocketTimeoutException (x285)`\n- 🔴 `SQLTransientConnectionException (x110)`\n- 🔴 `PSQLException (x14)`\n\n#### Key Splunk Evidence Log Snippets\n```log\n2026-10-11 02:16:49 UTC [ERROR] [auth-service] [98a12c44-b102-4ef1-a881-22c98d0112fa] host=db-user-prod.internal endpoint=/api/v1/payments/process status=504 message=\"Gateway Timeout: Downstream payment vendor endpoint timed out after 30000ms\"\n2026-10-11 02:16:49 UTC [ERROR] [auth-service] [98a12c44-b102-4ef1-a881-22c98d0112fa] host=db-user-prod.internal endpoint=/api/v1/payments/charge status=500 exception=java.sql.SQLTransientConnectionException message=\"HikariPool-1 - Connection is not available, request timed out after 30002ms.\"\n2026-10-11 02:16:49 UTC [ERROR] [auth-service] [req-889123c-a90b] host=prod-auth-srv-01.internal endpoint=/api/v1/payments/process status=503 message=\"Service Unavailable: Circuit breaker OPEN for target downstream-provider\"\n2026-10-11 02:16:49 UTC [FATAL] [auth-service] [req-771290a-112c] host=db-user-prod.internal endpoint=/api/v1/checkout/submit status=500 exception=org.postgresql.util.PSQLException message=\"ERROR: deadlock detected - Process 28919 waits for ExclusiveLock on transaction\"\n2026-10-11 02:16:49 UTC [ERROR] [auth-service] trace_id=98a12c44-b102-4ef1-a881-22c98d0112fa java.net.SocketTimeoutException: Read timed out after 30000ms\n```\n\n## 5. 🎯 Root Cause Analysis (RCA)\n> **Root Cause Hypothesis:**\n> Downstream Dependency Latency/Timeout: The auth-service experienced upstream/downstream connection timeouts (HTTP 504 / SocketTimeoutException), causing request queue backpressure and cascading connection pool exhaustion.\n\n## 6. ⏱️ Timeline of Events\n- [Wed, 15 Oct 2025 15:05:00 +0000] Incident alert triggered: ALARM: \"auth-service-5xx-spike\" in Production US-East-1\n- [2026-10-11 02:16:49 UTC] Ops Support Agent ingested alert and extracted service, status codes, and trace identifiers.\n- [2026-10-11 02:16:49 UTC] Executed 5 automated Splunk search queries spanning time range (-60m to now).\n- [2026-10-11 02:16:49 UTC] Correlated log signatures: Identified 3 recurring exception classes across 4 hosts.\n- [2026-10-11 02:16:49 UTC] Root cause analysis completed and remediation action plan formulated.\n\n## 7. 🚀 Remediation Action Plan\n1. **Circuit Breaker & Fallback**: Engage downstream payment provider status page; temporarily activate fallback retry backoff and circuit breaking.\n2. **Connection Timeout Tuning**: Adjust client connect timeout from 30s to 10s to prevent worker thread saturation.\n3. **Service Mesh Health**: Verify Envoy/Istio egress proxy connections and DNS resolution latency.\n4. **Notify Stakeholders**: Dispatch incident status update to `#ops-incident-war-room` and update ticket `INC-441029`.\n\n## 8. 📞 Escalation & Communication\n- **Recommended Escalation Team:** `Tier-2 Engineering (auth-service On-Call Team) & Database Reliability Engineering`\n- **Communication Status:** Triage complete. Investigation report attached for review.\n"
+}

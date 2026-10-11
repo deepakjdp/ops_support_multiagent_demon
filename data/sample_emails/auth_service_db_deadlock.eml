@@ -1,0 +1,25 @@
+From: CloudWatch Alarms <alarms@us-east-1.aws.amazon.com>
+To: Incident Response <sec-ops@company.internal>
+Subject: ALARM: "auth-service-5xx-spike" in Production US-East-1
+Date: Wed, 15 Oct 2025 15:05:00 +0000
+Message-ID: <cw-alarm-88123@aws.amazon.com>
+Content-Type: text/plain; charset="utf-8"
+
+Alarm Description:
+Service auth-service is emitting elevated 500 internal server errors.
+Severity: P2 - High
+Incident: INC-441029
+Target Service: auth-service
+Host: prod-auth-srv-01.internal, prod-auth-srv-02.internal
+Endpoint: /api/v1/auth/token
+
+Logs extracted:
+2025-10-15 15:04:12 UTC [ERROR] [auth-service] [trace_id=98a12c44-b102-4ef1-a881-22c98d0112fa] host=prod-auth-srv-01.internal endpoint=/api/v1/auth/token status=500 exception=PSQLException message="ERROR: deadlock detected - Process 28919 waits for ExclusiveLock on transaction"
+org.postgresql.util.PSQLException: ERROR: deadlock detected
+Detail: Process 28919 waits for ExclusiveLock on transaction 89123; blocked by process 28920.
+
+Database: PostgreSQL cluster db-user-prod.internal
+Status: 500 Internal Server Error
+Affected Users: User login sessions timing out.
+
+Please query Splunk cluster to identify deadlock queries and recommend fix.
