@@ -1,6 +1,6 @@
-# 🛡️ Ops Support Multi-Agent System (with Self-Healing)
+# 🛡️ Ops Support Multi-Agent System (with Self-Healing & Runbooks)
 
-An enterprise-grade, end-to-end multi-agent system designed for automated operational incident response, log telemetry investigation with Splunk, root cause analysis (RCA), automated self-healing remediation, and executive report synthesis.
+An enterprise-grade, end-to-end multi-agent system designed for automated operational incident response, log telemetry investigation with Splunk, root cause analysis (RCA), automated runbook/playbook execution, and executive report synthesis.
 
 ---
 
@@ -15,7 +15,7 @@ sequenceDiagram
     participant SPLGen as ⚡ Splunk Query Gen Agent
     participant Splunk as 🔎 Splunk Telemetry Agent
     participant RCA as 🧠 Log Analyzer & RCA Agent
-    participant SelfHeal as 🩺 Self-Healing Agent
+    participant SelfHeal as 🩺 Self-Healing Agent (Runbooks)
     participant Reporter as 📄 Report Generator Agent
 
     Monitoring->>Ingestion: Ingests .eml / JSON webhook / Text Alert
@@ -24,7 +24,7 @@ sequenceDiagram
     SPLGen->>Splunk: Generates 5 targeted SPL Queries
     Splunk->>RCA: Executes searches (Local Splunk :8089 or Mock Engine)
     RCA->>SelfHeal: LogAnalysisSummary (Error Patterns, RCA Hypothesis)
-    SelfHeal->>SelfHeal: Selects Playbook, Executes Remediation, Probes Health
+    SelfHeal->>SelfHeal: Matches Runbook, Executes Remediation, Probes Health
     SelfHeal->>Reporter: SelfHealingResult (Status, Post-Error Rate, Rollback Plan)
     Reporter->>Reporter: Compiles Markdown & JSON Incident Investigation Report
     Reporter-->>Monitoring: Archived Report (RPT-INC-XXXX.md / .json)
@@ -108,14 +108,6 @@ sequenceDiagram
 ### 6. 🩺 Self-Healing & Automated Remediation Agent
 - **Source File**: [`src/self_healing_agent.py`](src/self_healing_agent.py:1)
 - **Role**: SRE automation specialist executing pre-approved remediation playbooks and verifying health recovery.
-- **Playbook Catalog**:
-  | Playbook ID | Trigger / Root Cause | Automated Remediation Action | Rollback Command |
-  | :--- | :--- | :--- | :--- |
-  | `PLAYBOOK-NET-01` | Downstream Timeout (504 / SocketTimeout) | Activate circuit breaker & throttle client timeout to 10s | Disable circuit breaker |
-  | `PLAYBOOK-DB-02` | HikariCP Connection Pool Starvation | Flush connection leases & rolling pod restart | Rollback Kubernetes deployment |
-  | `PLAYBOOK-DB-01` | Database Deadlock / ExclusiveLock | Cancel blocking idle transactions (`pg_cancel_backend`) | N/A (Transient Locks) |
-  | `PLAYBOOK-K8S-03` | Memory Exhaustion (OOM) | Auto-scale deployment replicas (+50%) & drain overloaded nodes | Restore replica baseline |
-  | `PLAYBOOK-GEN-01` | General Service Degradation | Trigger zero-downtime rolling restart of worker pods | Rollout undo deployment |
 - **Verification**: Executes post-healing synthetic health checks to verify error rate drops to `0.0%` and status transitions to `VERIFIED_HEALTHY`.
 - **Output**: `SelfHealingResult` schema.
 
@@ -126,24 +118,96 @@ sequenceDiagram
 - **Role**: Documentation specialist synthesizing all forensic artifacts into executive and engineering reports.
 - **Core Tasks & Responsibilities**:
   - Compiles comprehensive Markdown (`.md`) and JSON (`.json`) reports.
-  - Structures reports into 9 standardized sections:
-    1. Incident Overview (Severity, Service, Trace IDs, Endpoints)
-    2. Executive Summary
-    3. Self-Healing Remediation & Automation Audit
-    4. Splunk SPL Queries Generated & Executed
-    5. Log Observability & Metrics Findings
-    6. Root Cause Analysis (RCA) Hypothesis
-    7. Chronological Timeline of Events
-    8. Remediation Action Plan & Runbooks
-    9. Escalation & Stakeholder Communication
+  - Structures reports into standardized sections (Incident Overview, Executive Summary, Self-Healing Remediation Audit, SPL Queries, Observability Metrics, RCA, Timeline, Remediation Action Plan, Escalation).
   - Saves reports automatically to [`reports/`](reports/).
 - **Output**: `OpsIncidentReport` schema and persistent disk files.
 
 ---
 
-### 8. 🎯 Multi-Agent Orchestrator
+### 8. 🎯 Master Multi-Agent Orchestrator
 - **Source File**: [`src/agent.py`](src/agent.py:1)
-- **Role**: Master pipeline conductor coordinating task handoffs and state across all 7 specialized agents.
+- **Role**: Master pipeline conductor coordinating task handoffs and state across all specialized agents.
+
+---
+
+## 📖 Runbooks in the Application
+
+### 📌 How Runbooks Are Used Across the 4 Lifecycle Stages
+
+Runbooks (stored in [`runbooks/`](runbooks/)) define standardized operating procedures for incident mitigation. The application leverages them as follows:
+
+```
+  [ Incident Alert ] ──► [ RCA Engine ] ──► [ 1. Match Runbook ] 
+                                                   │
+  ┌────────────────────────────────────────────────┴────────────────────────────────┐
+  │                                                                                 │
+  ▼                                                                                 ▼
+[ 2. Auto-Execute (Self-Healing) ]                               [ 3. Embed in Incident Report ]
+- Trigger circuit breaker / restart pods                         - Step-by-step guidance for On-Call
+- Verify error drop via synthetic probe                          - Splunk queries to monitor
+                                                                 - Rollback instructions (Stage 4)
+```
+
+1. **Trigger & Policy Matching (`src/self_healing_agent.py`)**:
+   - The RCA engine identifies the incident failure mechanism (e.g., `SocketTimeoutException` or `PSQLException deadlock`).
+   - The Self-Healing Agent matches the incident to a specific Runbook in [`runbooks/`](runbooks/) and validates safety policies (`risk_level: LOW/MEDIUM`, `auto_remediation_allowed: true`).
+
+2. **Automated Playbook Execution (`src/self_healing_agent.py`)**:
+   - The agent executes the runbook’s automated commands (e.g. activate circuit breaker, adjust client timeouts, flush connection pool leases, cancel deadlocked backend transactions).
+
+3. **Post-Healing Health Verification**:
+   - The agent triggers the runbook's verification health probe to confirm service health returns to `200 OK` and error rate drops to `0.0%`.
+
+4. **Action Plans & Rollback Procedures (`src/report_generator.py`)**:
+   - The runbook’s manual escalation steps and exact **Rollback Commands** are embedded directly into the generated Incident Report (`reports/`).
+
+---
+
+### 📚 Available Runbook Catalog
+
+| Runbook File | Runbook ID | Failure Trigger | Automated Mitigation Command | Rollback Procedure |
+| :--- | :--- | :--- | :--- | :--- |
+| [`runbooks/RB-NET-504-DOWNSTREAM-TIMEOUT.yaml`](runbooks/RB-NET-504-DOWNSTREAM-TIMEOUT.yaml) | `RB-NET-504` | HTTP 504 / Downstream Timeout | Activate circuit breaker & throttle client timeout to 10s | Disable circuit breaker & restore 30s timeout |
+| [`runbooks/RB-DB-500-DEADLOCK.yaml`](runbooks/RB-DB-500-DEADLOCK.yaml) | `RB-DB-500` | PostgreSQL Deadlock / ExclusiveLock | Cancel idle blocking transactions (`pg_cancel_backend`) | N/A (Transient Locks released) |
+| *Built-in DB Pool Runbook* | `PLAYBOOK-DB-02` | HikariCP Connection Pool Exhaustion | Flush connection leases & rolling pod restart | Rollback Kubernetes deployment |
+| *Built-in K8s OOM Runbook* | `PLAYBOOK-K8S-03` | Memory Exhaustion (OOMKilled) | Auto-scale deployment replicas (+50%) & drain pods | Scale back replica count |
+
+---
+
+### 📄 Example Runbook Schema ([`runbooks/RB-NET-504-DOWNSTREAM-TIMEOUT.yaml`](runbooks/RB-NET-504-DOWNSTREAM-TIMEOUT.yaml))
+
+```yaml
+id: "RB-NET-504"
+name: "Downstream Gateway Timeout & Circuit Breaker Remediation"
+target_services:
+  - "payment-service"
+  - "checkout-service"
+severity_trigger: ["P1 - Critical", "P2 - High"]
+
+symptoms:
+  - "HTTP 504 Gateway Timeout on /api/v1/payments/process"
+  - "java.net.SocketTimeoutException: Read timed out after 30000ms"
+
+safety_policy:
+  risk_level: "LOW"
+  auto_remediation_allowed: true
+  requires_human_approval: false
+
+automated_playbook:
+  step_1_circuit_breaker:
+    description: "Activate circuit breaker to fail fast and prevent thread pool saturation"
+    command: "consul kv put config/payment-service/circuit_breaker_enabled true"
+  step_2_throttle_timeout:
+    description: "Reduce HTTP client timeout from 30s to 10s"
+    command: "kubectl set env deployment/payment-service CLIENT_TIMEOUT_MS=10000 -n production"
+  step_3_verification:
+    description: "Verify synthetic health probes return HTTP 200"
+    command: "curl -I -f https://payment-service.internal/health"
+
+rollback:
+  command: "consul kv put config/payment-service/circuit_breaker_enabled false"
+  description: "Disable circuit breaker once downstream vendor recovers"
+```
 
 ---
 
@@ -204,11 +268,14 @@ python3 -m pytest tests/ -v
 
 ```
 ops_support_multiagent_demo/
-├── README.md                      # Comprehensive system documentation
+├── README.md                      # Comprehensive system & agent documentation
 ├── requirements.txt               # Python package dependencies
 ├── .env.example                   # Splunk connection configuration template
 ├── config.py                      # Global configuration and environment settings
 ├── run.py / run.sh                # CLI entry points and runner scripts
+├── runbooks/                      # Standard Operating Runbooks & Playbooks (YAML)
+│   ├── RB-NET-504-DOWNSTREAM-TIMEOUT.yaml
+│   └── RB-DB-500-DEADLOCK.yaml
 ├── src/
 │   ├── __init__.py
 │   ├── models.py                  # Pydantic data schemas for all agents
